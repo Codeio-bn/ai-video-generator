@@ -73,6 +73,15 @@ export interface SystemStatus {
   whisper_ok: boolean;
   whisper_detail: string;
   gemini_key_set: boolean;
+  gemini_model: string;
+}
+
+export interface ScriptGenResult {
+  episodes: Episode[];
+  model: string;
+  cost: number;
+  prompt_tokens: number;
+  output_tokens: number;
 }
 
 export interface RenderOptions {

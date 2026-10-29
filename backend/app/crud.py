@@ -222,3 +222,35 @@ def update_job(jid: int, **fields) -> None:
             [fields[c] for c in cols] + [jid],
         )
         conn.commit()
+
+
+# --------------------------------------------------------------------------- #
+# cost log
+# --------------------------------------------------------------------------- #
+
+def add_cost(
+    project_id: int,
+    provider: str,
+    model: str,
+    amount: float,
+    note: str = "",
+    episode_id: Optional[int] = None,
+    shot_id: Optional[int] = None,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO cost_log "
+            "(project_id, episode_id, shot_id, provider, model, amount, note) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (project_id, episode_id, shot_id, provider, model, amount, note),
+        )
+        conn.commit()
+
+
+def project_cost_total(project_id: int) -> float:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_log WHERE project_id=?",
+            (project_id,),
+        ).fetchone()
+        return float(row["total"]) if row else 0.0

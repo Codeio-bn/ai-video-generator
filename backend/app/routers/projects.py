@@ -9,9 +9,10 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from .. import crud
+from ..llm import LLMError, generate_episodes
 from ..schemas import (
     EpisodeCreate, EpisodeUpdate, ProjectCreate, ProjectUpdate,
-    ReorderRequest, ShotCreate, ShotUpdate,
+    ReorderRequest, ScriptGenRequest, ShotCreate, ShotUpdate,
 )
 from ..storage import episode_dir, shots_dir
 
@@ -94,6 +95,73 @@ def create_episode(pid: int, body: EpisodeCreate):
     data = body.model_dump()
     data["project_id"] = pid
     return crud.create_episode(data)
+
+
+@router.post("/projects/{pid}/generate-script")
+def generate_script(pid: int, body: ScriptGenRequest):
+    """Milestone 2: split a source story into episode drafts with Gemini."""
+    project = _require_project(pid)
+
+    # Persist the pasted story onto the project so it survives a reload.
+    source = (body.source_text or project.get("source_text") or "").strip()
+    if body.source_text and body.source_text != project.get("source_text"):
+        crud.update_project(pid, {"source_text": body.source_text})
+        project = crud.get_project(pid)
+    if not source:
+        raise HTTPException(400, "Paste the SCP source story before generating.")
+
+    try:
+        result = generate_episodes(project, source, body.num_parts, body.guidance)
+    except LLMError as exc:
+        # Expected, user-facing failures (missing key, blocked, bad response).
+        raise HTTPException(400, str(exc))
+    except Exception as exc:  # noqa: BLE001 - unexpected; still surface cleanly
+        raise HTTPException(502, f"Gemini request failed: {exc}")
+
+    if body.replace:
+        for ep in crud.list_episodes(pid):
+            crud.delete_episode(ep["id"])
+        start = 1
+    else:
+        existing = crud.list_episodes(pid)
+        start = (max((e["part_number"] for e in existing), default=0)) + 1
+
+    created = []
+    for offset, ep in enumerate(result.episodes):
+        part = start + offset
+        created.append(
+            crud.create_episode(
+                {
+                    "project_id": pid,
+                    "part_number": part,
+                    "title": ep["title"] or f"Part {part}",
+                    "hook": ep["hook"],
+                    "previously": ep["previously"] if part > 1 else "",
+                    "narration_script": ep["narration_script"],
+                    "cliffhanger": ep["cliffhanger"],
+                    "status": "draft",
+                }
+            )
+        )
+
+    crud.add_cost(
+        pid,
+        provider="gemini",
+        model=result.model,
+        amount=result.cost,
+        note=(
+            f"script gen: {len(created)} episodes, "
+            f"{result.prompt_tokens}+{result.output_tokens} tokens (est.)"
+        ),
+    )
+
+    return {
+        "episodes": created,
+        "model": result.model,
+        "cost": round(result.cost, 4),
+        "prompt_tokens": result.prompt_tokens,
+        "output_tokens": result.output_tokens,
+    }
 
 
 @router.get("/episodes/{eid}")

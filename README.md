@@ -18,7 +18,7 @@ Everything runs on `localhost`. FastAPI (Python) backend · React + TypeScript
 | Milestone | Scope | State |
 |-----------|-------|-------|
 | **1. Render pipeline** | FFmpeg assembly: Ken Burns stills, 9:16 clip crop, title/attribution cards, captions, music ducking, background jobs, minimal UI | ✅ **Done** |
-| 2. Script generation | Paste story → Gemini splits into episodes (hook / narration / cliffhanger) | ⬜ Next |
+| **2. Script generation** | Paste story → Gemini splits into episodes (hook / narration / cliffhanger) | ✅ **Done** |
 | 3. Narration audio | Local Kokoro TTS (pluggable) + word timestamps | ⬜ |
 | 4. Shot list + Veo | LLM shot list, Google Veo 3.1 generation, cost control | ⬜ |
 | 5. Export | MP4 + paste-ready description with attribution + hashtags | ⬜ |
@@ -114,6 +114,27 @@ warning). On Python 3.15 these wheels don't exist yet — see
 (gitignored, never in the frontend bundle). Get a key from Google AI Studio.
 
 ---
+
+## Using Milestone 2 (script generation)
+
+1. Save a **Google Gemini API key** under **Settings** (see above). The
+   **Gemini** chip in the top bar turns green and the test button does a live
+   round-trip.
+2. Open a project and paste the full SCP story into **Generate episodes from
+   the story**.
+3. Pick a number of parts (or leave it on **Auto**) and optionally add guidance
+   (e.g. "keep each part under 60 s"). Click **Generate episodes**.
+4. Gemini splits the story into episode drafts — each with a hook, narration
+   script and cliffhanger (plus a "previously…" recap on parts 2+). They appear
+   as **draft** episodes; tick **Replace existing episodes** to start the set
+   over instead of appending.
+5. Open each episode, review and edit the script, then continue with the
+   Milestone 1 audio/shots/render flow.
+
+Generation is **human-in-the-loop**: nothing is produced until you approve a
+script. The call runs over the Gemini REST API (model `gemini-2.5-flash` by
+default; override with a `GEMINI_MODEL` env var or secret). A rough token-cost
+estimate is recorded per project in the `cost_log` table for budget awareness.
 
 ## Attribution (SCP license)
 

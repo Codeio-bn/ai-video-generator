@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import type { Episode, Project } from "../types";
+import type { Episode, Project, SystemStatus } from "../types";
+import { Banner } from "./common";
 
 export function ProjectView({
   projectId, onOpenEpisode, onBack,
@@ -12,12 +13,15 @@ export function ProjectView({
   const [project, setProject] = useState<Project | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [saved, setSaved] = useState(false);
+  const [sys, setSys] = useState<SystemStatus | null>(null);
 
+  const loadEpisodes = () => api.listEpisodes(projectId).then(setEpisodes);
   const load = () => {
     api.getProject(projectId).then(setProject);
-    api.listEpisodes(projectId).then(setEpisodes);
+    loadEpisodes();
   };
   useEffect(load, [projectId]);
+  useEffect(() => { api.system().then(setSys).catch(() => setSys(null)); }, []);
 
   if (!project) return <div className="container">Loading…</div>;
   const set = (k: keyof Project, v: string | number) =>
@@ -79,6 +83,15 @@ export function ProjectView({
         </div>
       </div>
 
+      <ScriptGenPanel
+        project={project}
+        episodeCount={episodes.length}
+        geminiReady={!!sys?.gemini_key_set}
+        model={sys?.gemini_model ?? ""}
+        onChangeSource={(v) => set("source_text", v)}
+        onGenerated={load}
+      />
+
       <div className="btn-row" style={{ justifyContent: "space-between" }}>
         <h2 style={{ border: "none" }}>Episodes</h2>
         <button className="primary" onClick={addEpisode}>+ Add episode</button>
@@ -94,6 +107,131 @@ export function ProjectView({
               <span className={`tag ${ep.status}`}>{ep.status}</span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScriptGenPanel({
+  project, episodeCount, geminiReady, model,
+  onChangeSource, onGenerated,
+}: {
+  project: Project;
+  episodeCount: number;
+  geminiReady: boolean;
+  model: string;
+  onChangeSource: (v: string) => void;
+  onGenerated: () => void;
+}) {
+  const [numParts, setNumParts] = useState(0);   // 0 = auto
+  const [guidance, setGuidance] = useState("");
+  const [replace, setReplace] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  const hasSource = !!project.source_text.trim();
+
+  const generate = async () => {
+    if (replace && episodeCount > 0) {
+      const ok = window.confirm(
+        `This will delete the ${episodeCount} existing episode(s) and their ` +
+        `shots/audio, then create a fresh set. Continue?`,
+      );
+      if (!ok) return;
+    }
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const res = await api.generateScript(project.id, {
+        source_text: project.source_text,
+        num_parts: numParts,
+        guidance,
+        replace,
+      });
+      const cost = res.cost > 0 ? ` · ~$${res.cost.toFixed(4)}` : "";
+      setResult(
+        `Generated ${res.episodes.length} episode(s) with ${res.model}${cost}. ` +
+        `Review and edit each one before producing audio.`,
+      );
+      onGenerated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <h3>Generate episodes from the story (Gemini)</h3>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        Paste the full SCP story below. Gemini splits it into episode drafts —
+        each with a hook, narration and cliffhanger — which you then review and
+        edit. Nothing is produced until you approve it.
+      </p>
+
+      <div className="field">
+        <label>Source story</label>
+        <textarea
+          rows={8}
+          value={project.source_text}
+          placeholder="Paste the SCP article / story text here…"
+          onChange={(e) => onChangeSource(e.target.value)}
+        />
+      </div>
+
+      <div className="grid-2">
+        <div className="field">
+          <label>Number of parts</label>
+          <select value={numParts} onChange={(e) => setNumParts(Number(e.target.value))}>
+            <option value={0}>Auto (let Gemini decide)</option>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>Extra guidance (optional)</label>
+          <input
+            value={guidance}
+            placeholder="e.g. keep it under 60s, emphasize the containment breach"
+            onChange={(e) => setGuidance(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="btn-row" style={{ alignItems: "center" }}>
+        <button className="primary" onClick={generate}
+          disabled={busy || !geminiReady || !hasSource}>
+          {busy ? <span className="spin" /> : "Generate episodes"}
+        </button>
+        <label className="small" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="checkbox" checked={replace}
+            onChange={(e) => setReplace(e.target.checked)} />
+          Replace existing episodes
+        </label>
+        {model && <span className="muted small">model: {model}</span>}
+      </div>
+
+      {!geminiReady && (
+        <div style={{ marginTop: 10 }}>
+          <Banner kind="warn">
+            No Gemini API key saved. Add one under <strong>Settings</strong> to
+            enable generation.
+          </Banner>
+        </div>
+      )}
+      {!replace && episodeCount > 0 && geminiReady && (
+        <p className="muted small" style={{ marginTop: 8 }}>
+          New episodes will be appended after Part {episodeCount}. Tick
+          “Replace” to start over.
+        </p>
+      )}
+      {error && <div style={{ marginTop: 10 }}><Banner kind="err">{error}</Banner></div>}
+      {result && (
+        <div style={{ marginTop: 10 }}>
+          <Banner kind="ok">{result}</Banner>
         </div>
       )}
     </div>

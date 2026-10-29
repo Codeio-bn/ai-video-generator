@@ -1,5 +1,5 @@
 import type {
-  Episode, Job, Project, Shot, SystemStatus,
+  Episode, Job, Project, ScriptGenResult, Shot, SystemStatus,
 } from "./types";
 
 async function req<T>(url: string, opts: RequestInit = {}): Promise<T> {
@@ -54,6 +54,14 @@ export const api = {
   getEpisode: (eid: number) => req<Episode>(`/api/episodes/${eid}`),
   createEpisode: (pid: number, data: Partial<Episode>) =>
     req<Episode>(`/api/projects/${pid}/episodes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  generateScript: (
+    pid: number,
+    data: { source_text: string; num_parts: number; guidance: string; replace: boolean },
+  ) =>
+    req<ScriptGenResult>(`/api/projects/${pid}/generate-script`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

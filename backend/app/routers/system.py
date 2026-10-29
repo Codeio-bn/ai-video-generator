@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import captions as captions_mod
+from .. import llm
 from ..config import (
     PROJECTS_DIR, ffmpeg_path, ffprobe_path, get_secret, save_secret,
 )
@@ -48,6 +49,7 @@ def system_status():
         "whisper_ok": whisper_ok,
         "whisper_detail": whisper_why,
         "gemini_key_set": bool(get_secret("GEMINI_API_KEY")),
+        "gemini_model": llm.model_name(),
     }
 
 
@@ -64,8 +66,4 @@ def set_secret(body: SecretBody):
 
 @router.post("/settings/test-gemini")
 def test_gemini():
-    # Full round-trip test arrives with Milestone 2 (script generation).
-    key = get_secret("GEMINI_API_KEY")
-    if not key:
-        return {"ok": False, "detail": "No Gemini API key saved yet."}
-    return {"ok": True, "detail": "Key is present. Live API test lands in Milestone 2."}
+    return llm.check_connection()

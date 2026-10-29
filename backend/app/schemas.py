@@ -84,5 +84,12 @@ class ReorderRequest(BaseModel):
     shot_ids: list[int]
 
 
+class ScriptGenRequest(BaseModel):
+    source_text: str = ""
+    num_parts: int = 0        # 0 = let the model choose
+    guidance: str = ""
+    replace: bool = False     # replace existing episodes instead of appending
+
+
 class RenderRequest(BaseModel):
     options: dict = {}

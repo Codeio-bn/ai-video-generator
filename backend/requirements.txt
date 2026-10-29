@@ -10,5 +10,7 @@ requests>=2.32
 # If install fails on a brand-new Python, rendering still works without captions.
 # faster-whisper>=1.1
 
-# Milestone 2/4 Gemini + Veo (added when we reach those milestones).
-# google-genai>=0.8
+# Milestone 2 (script generation) calls the Gemini REST API with `requests`
+# above — no new dependency, and it avoids google-genai's transitive wheels,
+# which are risky on brand-new Python. M4 (Veo) will reuse the same seam.
+# google-genai>=0.8   # only if we later want the official SDK
