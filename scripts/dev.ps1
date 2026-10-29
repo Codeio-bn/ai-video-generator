@@ -15,8 +15,11 @@ if (-not (Test-Path "$root\frontend\node_modules")) {
 
 $procs = @()
 try {
+    # --reload-dir app scopes the watcher to backend\app so only source edits
+    # trigger a restart (not writes under data\ or projects\). WatchFiles gives
+    # near-instant reloads when installed; uvicorn falls back to polling if not.
     $backend = Start-Process -PassThru -NoNewWindow -WorkingDirectory "$root\backend" `
-        $py -ArgumentList "-m", "uvicorn", "app.main:app", "--reload", "--port", "8000"
+        $py -ArgumentList "-m", "uvicorn", "app.main:app", "--reload", "--reload-dir", "app", "--port", "8000"
     $procs += $backend
 
     $frontend = Start-Process -PassThru -NoNewWindow -WorkingDirectory "$root\frontend" `

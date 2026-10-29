@@ -19,7 +19,7 @@ Everything runs on `localhost`. FastAPI (Python) backend · React + TypeScript
 |-----------|-------|-------|
 | **1. Render pipeline** | FFmpeg assembly: Ken Burns stills, 9:16 clip crop, title/attribution cards, captions, music ducking, background jobs, minimal UI | ✅ **Done** |
 | **2. Script generation** | Paste story → Gemini splits into episodes (hook / narration / cliffhanger) | ✅ **Done** |
-| 3. Narration audio | Local Kokoro TTS (pluggable) + word timestamps | ⬜ |
+| **3. Narration audio** | Local Kokoro TTS (pluggable) + word timestamps | ✅ **Done** |
 | 4. Shot list + Veo | LLM shot list, Google Veo 3.1 generation, cost control | ⬜ |
 | 5. Export | MP4 + paste-ready description with attribution + hashtags | ⬜ |
 
@@ -53,9 +53,19 @@ powershell -File scripts\dev.ps1
 # then open http://127.0.0.1:5173
 ```
 
-`dev.ps1` starts **both** servers in one command — the API (hot reload) and the
-Vite frontend — and one Ctrl+C stops both. UI/styling changes appear instantly,
-no rebuild needed. This is the recommended way to run the app day to day.
+`dev.ps1` starts **both** servers in one command — the API and the Vite
+frontend — and one Ctrl+C stops both. **This is the way to run day to day:**
+nothing needs restarting as you work.
+
+- **Frontend** changes hot-reload instantly over Vite HMR (`:5173`), which
+  proxies `/api` to the backend, so the browser only ever talks to one origin.
+- **Backend** Python changes auto-restart the API via `uvicorn --reload`. With
+  `watchfiles` installed (it's in `requirements.txt` and works on Python 3.15)
+  the restart is near-instant; otherwise uvicorn falls back to slower polling.
+
+Use the production `run.ps1` below only to sanity-check the built bundle — it
+serves a **pre-built** frontend and does **not** reload, so it's not for
+iterating.
 
 ### Production mode (single origin)
 
@@ -135,6 +145,31 @@ Generation is **human-in-the-loop**: nothing is produced until you approve a
 script. The call runs over the Gemini REST API (model `gemini-2.5-flash` by
 default; override with a `GEMINI_MODEL` env var or secret). A rough token-cost
 estimate is recorded per project in the `cost_log` table for budget awareness.
+
+## Using Milestone 3 (narration audio)
+
+In an episode's **Audio** panel:
+
+1. Pick a **Kokoro voice** and click **Generate narration**. The hook, "previously…"
+   recap (parts 2+), narration and cliffhanger are read in order into
+   `narration.wav`, and per-word caption timings are stored at the same time.
+2. Or **Upload** your own narration file (any wav/mp3), exactly as in Milestone 1.
+3. **Estimate caption timings** derives word timings from the narration audio's
+   length and the script text. This lets burned-in captions work **even without
+   faster-whisper** — handy on Python 3.15. A chip shows how many word timings
+   are stored; the renderer prefers these over a live transcription.
+
+Kokoro runs locally through torch/ONNX, whose wheels don't exist for Python 3.15
+yet, so the **Kokoro TTS** chip shows unavailable there and the generate button
+is disabled — upload narration by hand instead (captions still work via the
+timing estimate). On Python 3.10–3.12, install it with:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install kokoro soundfile
+```
+
+The TTS provider lives behind a seam (`backend/app/tts.py`), so a cloud voice
+can later replace Kokoro without touching the routers.
 
 ## Attribution (SCP license)
 

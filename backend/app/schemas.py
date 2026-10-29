@@ -91,5 +91,10 @@ class ScriptGenRequest(BaseModel):
     replace: bool = False     # replace existing episodes instead of appending
 
 
+class TTSRequest(BaseModel):
+    voice: str = ""           # Kokoro voice id; defaults to project/narrator voice
+    lang_code: str = ""       # optional override ('a' American, 'b' British)
+
+
 class RenderRequest(BaseModel):
     options: dict = {}

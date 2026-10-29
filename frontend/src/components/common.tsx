@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export function Modal({
   title, onClose, children,
@@ -7,7 +8,18 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
-  return (
+  // Close on Escape for convenience.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Render into <body> via a portal. The top bar uses backdrop-filter, which
+  // makes it a containing block for position:fixed descendants — so a modal
+  // nested under it would anchor to the bar (off-screen) instead of the
+  // viewport. The portal lifts it out so `inset: 0` means the whole viewport.
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="btn-row" style={{ justifyContent: "space-between" }}>
@@ -16,7 +28,8 @@ export function Modal({
         </div>
         <div style={{ marginTop: 14 }}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from .. import captions as captions_mod
 from .. import llm
+from .. import tts
 from ..config import (
     PROJECTS_DIR, ffmpeg_path, ffprobe_path, get_secret, save_secret,
 )
@@ -42,6 +43,7 @@ def _is_within(p: Path, root: Path) -> bool:
 @router.get("/system")
 def system_status():
     whisper_ok, whisper_why = captions_mod.whisper_available()
+    kokoro_ok, kokoro_why = tts.kokoro_available()
     return {
         "ffmpeg": ffmpeg_path(),
         "ffprobe": ffprobe_path(),
@@ -50,6 +52,9 @@ def system_status():
         "whisper_detail": whisper_why,
         "gemini_key_set": bool(get_secret("GEMINI_API_KEY")),
         "gemini_model": llm.model_name(),
+        "kokoro_ok": kokoro_ok,
+        "kokoro_detail": kokoro_why,
+        "tts_voices": tts.VOICES,
     }
 
 

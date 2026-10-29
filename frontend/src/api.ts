@@ -72,6 +72,13 @@ export const api = {
     }),
   deleteEpisode: (eid: number) =>
     req(`/api/episodes/${eid}`, { method: "DELETE" }),
+  generateNarration: (eid: number, data: { voice: string; lang_code?: string }) =>
+    req<Episode>(`/api/episodes/${eid}/tts`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  estimateTimings: (eid: number) =>
+    req<Episode>(`/api/episodes/${eid}/estimate-timings`, { method: "POST" }),
 
   listShots: (eid: number) => req<Shot[]>(`/api/episodes/${eid}/shots`),
   createShot: (eid: number, data: Partial<Shot>) =>

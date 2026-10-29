@@ -8,11 +8,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from .. import crud
+import json as _json
+
+from .. import crud, tts
 from ..llm import LLMError, generate_episodes
 from ..schemas import (
     EpisodeCreate, EpisodeUpdate, ProjectCreate, ProjectUpdate,
-    ReorderRequest, ScriptGenRequest, ShotCreate, ShotUpdate,
+    ReorderRequest, ScriptGenRequest, ShotCreate, ShotUpdate, TTSRequest,
 )
 from ..storage import episode_dir, shots_dir
 
@@ -203,6 +205,52 @@ def upload_music(eid: int, file: UploadFile = File(...)):
     dest = episode_dir(proj["scp_number"], ep["part_number"]) / f"music{ext}"
     _save_upload(file, dest)
     return crud.update_episode(eid, {"music_path": str(dest.resolve())})
+
+
+@router.post("/episodes/{eid}/tts")
+def generate_narration(eid: int, body: TTSRequest):
+    """Milestone 3: synthesize narration from the script with local Kokoro TTS."""
+    ep = _require_episode(eid)
+    proj = _require_project(ep["project_id"])
+    text = tts.assemble_script(ep)
+    if not text:
+        raise HTTPException(400, "Write the hook / narration / cliffhanger first.")
+    voice = body.voice or proj.get("narrator_voice") or ""
+    dest = episode_dir(proj["scp_number"], ep["part_number"]) / "narration.wav"
+    try:
+        result = tts.synthesize(text, dest, voice, body.lang_code)
+    except tts.TTSError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:  # noqa: BLE001 - surface unexpected failures cleanly
+        raise HTTPException(502, f"TTS failed: {exc}")
+    return crud.update_episode(
+        eid,
+        {
+            "narration_audio_path": result.audio_path,
+            "narration_words": _json.dumps(result.words),
+        },
+    )
+
+
+@router.post("/episodes/{eid}/estimate-timings")
+def estimate_timings(eid: int):
+    """Estimate caption word-timings from the narration audio's duration.
+
+    Lets burned-in captions work without faster-whisper (e.g. on Python 3.15):
+    the words come from the script, their timing from the audio length.
+    """
+    ep = _require_episode(eid)
+    audio = ep.get("narration_audio_path")
+    if not audio or not Path(audio).exists():
+        raise HTTPException(400, "Set or generate narration audio first.")
+    text = tts.assemble_script(ep)
+    if not text:
+        raise HTTPException(400, "Write the script text first so words can be timed.")
+    duration = tts.probe_duration(audio)
+    if duration <= 0:
+        raise HTTPException(400, "Could not read the narration audio duration.")
+    words = tts.estimate_word_timings(text, duration)
+    return crud.update_episode(eid, {"narration_words": _json.dumps(words)})
 
 
 # --------------------------------------------------------------------------- #

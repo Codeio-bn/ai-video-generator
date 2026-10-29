@@ -28,6 +28,7 @@ export function SystemBar({ onBrand }: { onBrand: () => void }) {
           <>
             {chip(status.ffmpeg_ok, "FFmpeg")}
             {chip(status.whisper_ok, "Captions", true)}
+            {chip(status.kokoro_ok, "Kokoro TTS", true)}
             {chip(status.gemini_key_set, "Gemini", true)}
           </>
         )}
@@ -75,6 +76,12 @@ function SettingsModal({
           {status?.whisper_ok
             ? <span style={{ color: "var(--ok)" }}>available</span>
             : <span className="muted">unavailable — {status?.whisper_detail}</span>}
+        </div>
+        <div style={{ marginTop: 6 }}>
+          Narration TTS (Kokoro):{" "}
+          {status?.kokoro_ok
+            ? <span style={{ color: "var(--ok)" }}>available</span>
+            : <span className="muted">unavailable — {status?.kokoro_detail}</span>}
         </div>
       </div>
 

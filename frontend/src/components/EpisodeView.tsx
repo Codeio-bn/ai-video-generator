@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, fileUrl, upload } from "../api";
-import type { Episode, Project, Shot, ShotType } from "../types";
+import type { Episode, Project, Shot, ShotType, SystemStatus } from "../types";
+import { Banner } from "./common";
 import { RenderPanel } from "./RenderPanel";
 
 const KB_DIRECTIONS = ["in", "out", "left", "right", "up", "down"];
@@ -15,7 +16,7 @@ export function EpisodeView({
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
-  const [whisperOk, setWhisperOk] = useState(false);
+  const [sys, setSys] = useState<SystemStatus | null>(null);
   const [saved, setSaved] = useState(false);
 
   const loadShots = () => api.listShots(episodeId).then(setShots);
@@ -25,7 +26,7 @@ export function EpisodeView({
   });
   useEffect(() => {
     loadEpisode(); loadShots();
-    api.system().then((s) => setWhisperOk(s.whisper_ok));
+    api.system().then(setSys).catch(() => setSys(null));
   }, [episodeId]);
 
   if (!episode || !project) return <div className="container">Loading…</div>;
@@ -110,13 +111,10 @@ export function EpisodeView({
       <div className="panel">
         <h3>Audio</h3>
         <div className="row">
-          <div>
-            <label>Narration audio</label>
-            <FileButton accept="audio/*" label="Upload narration" onFile={uploadNarration} />
-            {episode.narration_audio_path && (
-              <audio controls src={fileUrl(episode.narration_audio_path)} style={{ width: "100%", marginTop: 8 }} />
-            )}
-          </div>
+          <NarrationControls
+            episode={episode} project={project} sys={sys}
+            onUpload={uploadNarration} onChange={loadEpisode}
+          />
           <div>
             <label>Background music (optional)</label>
             <FileButton accept="audio/*" label="Upload music" onFile={uploadMusic} />
@@ -149,7 +147,103 @@ export function EpisodeView({
       {/* ---- render ---- */}
       <h2>Output</h2>
       <RenderPanel episode={episode}
-        whisperOk={whisperOk} onRendered={loadEpisode} />
+        whisperOk={!!sys?.whisper_ok} onRendered={loadEpisode} />
+    </div>
+  );
+}
+
+function NarrationControls({
+  episode, project, sys, onUpload, onChange,
+}: {
+  episode: Episode;
+  project: Project;
+  sys: SystemStatus | null;
+  onUpload: (f: File) => void | Promise<void>;
+  onChange: () => void;
+}) {
+  const voices = sys?.tts_voices ?? [];
+  const seed = (() => {
+    const pv = (project.narrator_voice || "").toLowerCase();
+    return voices.find((v) => pv.includes(v)) || voices[0] || "af_heart";
+  })();
+  const [voice, setVoice] = useState(seed);
+  useEffect(() => setVoice(seed), [seed]);
+  const [busy, setBusy] = useState<"tts" | "time" | null>(null);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  const kokoroOk = !!sys?.kokoro_ok;
+  const whisperOk = !!sys?.whisper_ok;
+  const timings = (() => {
+    try {
+      const a = JSON.parse(episode.narration_words || "[]");
+      return Array.isArray(a) ? a.length : 0;
+    } catch { return 0; }
+  })();
+
+  const genTTS = async () => {
+    setBusy("tts"); setMsg(null);
+    try {
+      await api.generateNarration(episode.id, { voice });
+      setMsg({ kind: "ok", text: `Narration generated with ${voice}. Caption timings ready.` });
+      onChange();
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(null); }
+  };
+
+  const estimate = async () => {
+    setBusy("time"); setMsg(null);
+    try {
+      const ep = await api.estimateTimings(episode.id);
+      let n = 0;
+      try { n = JSON.parse(ep.narration_words || "[]").length; } catch { /* ignore */ }
+      setMsg({ kind: "ok", text: `Estimated timings for ${n} words from the audio length.` });
+      onChange();
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <div>
+      <label>Narration audio</label>
+      <div className="btn-row" style={{ flexWrap: "wrap" }}>
+        <select value={voice} onChange={(e) => setVoice(e.target.value)} style={{ maxWidth: 150 }}>
+          {voices.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <button className="primary" onClick={genTTS} disabled={busy !== null || !kokoroOk}>
+          {busy === "tts" ? <span className="spin" /> : "Generate narration"}
+        </button>
+        <FileButton accept="audio/*"
+          label={episode.narration_audio_path ? "Replace with upload" : "Upload instead"}
+          onFile={onUpload} />
+      </div>
+      {!kokoroOk && (
+        <p className="muted small" style={{ marginTop: 6 }}>
+          Kokoro TTS is unavailable here — upload a narration file instead.
+        </p>
+      )}
+      {episode.narration_audio_path && (
+        <>
+          <audio controls src={fileUrl(episode.narration_audio_path)}
+            style={{ width: "100%", marginTop: 8 }} />
+          <div className="btn-row" style={{ marginTop: 6, alignItems: "center" }}>
+            <button onClick={estimate} disabled={busy !== null}>
+              {busy === "time" ? <span className="spin" /> : "Estimate caption timings"}
+            </button>
+            {timings > 0
+              ? <span className="small" style={{ color: "var(--ok)" }}>✓ {timings} word timings stored</span>
+              : <span className="muted small">no caption timings yet</span>}
+          </div>
+          {!whisperOk && timings === 0 && (
+            <p className="muted small" style={{ marginTop: 4 }}>
+              faster-whisper isn’t installed, so captions need these estimated
+              timings — generate them from the audio above.
+            </p>
+          )}
+        </>
+      )}
+      {msg && <div style={{ marginTop: 8 }}><Banner kind={msg.kind}>{msg.text}</Banner></div>}
     </div>
   );
 }

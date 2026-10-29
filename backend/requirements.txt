@@ -5,6 +5,10 @@ uvicorn>=0.54          # plain uvicorn on purpose: uvicorn[standard] pulls pyyam
 python-multipart>=0.0.20
 pillow>=11
 requests>=2.32
+watchfiles>=1.3         # instant backend hot-reload for `uvicorn --reload`
+                        # (dev only). Ships an abi3 wheel, so it installs on
+                        # Python 3.15 with no compiler. Without it, uvicorn
+                        # falls back to a slower polling reloader.
 
 # Milestone 1 captions (optional). Needs ctranslate2 + av wheels for your Python.
 # If install fails on a brand-new Python, rendering still works without captions.
@@ -14,3 +18,10 @@ requests>=2.32
 # above — no new dependency, and it avoids google-genai's transitive wheels,
 # which are risky on brand-new Python. M4 (Veo) will reuse the same seam.
 # google-genai>=0.8   # only if we later want the official SDK
+
+# Milestone 3 narration (local Kokoro TTS). Needs torch/onnxruntime wheels for
+# your Python; these do NOT yet exist for Python 3.15. On Python 3.10-3.12:
+#     .\.venv\Scripts\python.exe -m pip install kokoro soundfile
+# Without it, narration can still be uploaded by hand and caption word-timings
+# are estimated from the audio duration (so captions work without any aligner).
+# kokoro>=0.9

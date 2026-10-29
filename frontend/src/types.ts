@@ -25,6 +25,7 @@ export interface Episode {
   cliffhanger: string;
   status: string;
   narration_audio_path: string | null;
+  narration_words: string | null;
   music_path: string | null;
   last_render_path: string | null;
   created_at: string;
@@ -74,6 +75,9 @@ export interface SystemStatus {
   whisper_detail: string;
   gemini_key_set: boolean;
   gemini_model: string;
+  kokoro_ok: boolean;
+  kokoro_detail: string;
+  tts_voices: string[];
 }
 
 export interface ScriptGenResult {
