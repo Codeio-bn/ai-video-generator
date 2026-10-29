@@ -74,6 +74,11 @@ export interface SystemStatus {
   whisper_ok: boolean;
   whisper_detail: string;
   gemini_key_set: boolean;
+  groq_key_set: boolean;
+  openai_key_set: boolean;
+  llm_provider: string;
+  llm_model: string;
+  llm_key_set: boolean;
   gemini_model: string;
   kokoro_ok: boolean;
   kokoro_detail: string;
@@ -86,6 +91,13 @@ export interface ScriptGenResult {
   cost: number;
   prompt_tokens: number;
   output_tokens: number;
+}
+
+export interface CostStatus {
+  spent: number;
+  cap: number;
+  remaining: number | null;   // null when no cap is set
+  over: boolean;
 }
 
 export interface RenderOptions {

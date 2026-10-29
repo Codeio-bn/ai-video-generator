@@ -1,5 +1,5 @@
 import type {
-  Episode, Job, Project, ScriptGenResult, Shot, SystemStatus,
+  CostStatus, Episode, Job, Project, ScriptGenResult, Shot, SystemStatus,
 } from "./types";
 
 async function req<T>(url: string, opts: RequestInit = {}): Promise<T> {
@@ -48,6 +48,7 @@ export const api = {
     }),
   deleteProject: (id: number) =>
     req(`/api/projects/${id}`, { method: "DELETE" }),
+  projectCost: (id: number) => req<CostStatus>(`/api/projects/${id}/cost`),
 
   listEpisodes: (pid: number) =>
     req<Episode[]>(`/api/projects/${pid}/episodes`),
@@ -65,6 +66,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  autogenerate: (
+    pid: number,
+    data: {
+      scp_ref: string; num_parts: number; generate_shots: boolean;
+      replace: boolean;
+    },
+  ) =>
+    req<Job>(`/api/projects/${pid}/autogenerate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateEpisode: (eid: number, data: Partial<Episode>) =>
     req<Episode>(`/api/episodes/${eid}`, {
       method: "PATCH",
@@ -79,6 +91,14 @@ export const api = {
     }),
   estimateTimings: (eid: number) =>
     req<Episode>(`/api/episodes/${eid}/estimate-timings`, { method: "POST" }),
+  generateShots: (
+    eid: number,
+    data: { avg_shot_secs: number; shot_type: string; replace: boolean },
+  ) =>
+    req<{ shots: Shot[]; model: string; cost: number }>(
+      `/api/episodes/${eid}/generate-shots`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
 
   listShots: (eid: number) => req<Shot[]>(`/api/episodes/${eid}/shots`),
   createShot: (eid: number, data: Partial<Shot>) =>

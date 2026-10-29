@@ -51,7 +51,17 @@ def system_status():
         "whisper_ok": whisper_ok,
         "whisper_detail": whisper_why,
         "gemini_key_set": bool(get_secret("GEMINI_API_KEY")),
-        "gemini_model": llm.model_name(),
+        "groq_key_set": bool(get_secret("GROQ_API_KEY")),
+        "openai_key_set": bool(get_secret("OPENAI_API_KEY")),
+        "llm_provider": llm.provider_name(),
+        "llm_model": llm.model_name(),
+        "llm_key_set": bool(
+            get_secret({
+                "groq": "GROQ_API_KEY",
+                "openai": "OPENAI_API_KEY",
+            }.get(llm.provider_name(), "GEMINI_API_KEY"))
+        ),
+        "gemini_model": llm.model_name(),  # kept for back-compat
         "kokoro_ok": kokoro_ok,
         "kokoro_detail": kokoro_why,
         "tts_voices": tts.VOICES,

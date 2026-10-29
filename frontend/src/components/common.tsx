@@ -1,5 +1,63 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { api } from "../api";
+import type { SystemStatus } from "../types";
+
+const PROVIDERS = [
+  { id: "groq", label: "Groq" },
+  { id: "openai", label: "OpenAI (GPT)" },
+  { id: "gemini", label: "Google Gemini" },
+] as const;
+
+const keySaved = (sys: SystemStatus | null, p: string) =>
+  p === "groq" ? !!sys?.groq_key_set
+  : p === "openai" ? !!sys?.openai_key_set
+  : !!sys?.gemini_key_set;
+
+/**
+ * Picks which text AI runs a generation. Writes the LLM_PROVIDER secret and
+ * asks the parent to refetch system status so the choice takes effect at once.
+ */
+export function ProviderPicker({
+  sys, onChange, disabled,
+}: {
+  sys: SystemStatus | null;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
+  const [saving, setSaving] = useState(false);
+  const current = sys?.llm_provider ?? "";
+
+  const choose = async (p: string) => {
+    if (p === current) return;
+    setSaving(true);
+    try { await api.saveSecret("LLM_PROVIDER", p); onChange(); }
+    finally { setSaving(false); }
+  };
+
+  const missingKey = !keySaved(sys, current);
+
+  return (
+    <div className="field" style={{ maxWidth: 320 }}>
+      <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        AI model for generation {saving && <span className="spin" />}
+      </label>
+      <select value={current} disabled={disabled || saving}
+        onChange={(e) => choose(e.target.value)}>
+        {PROVIDERS.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.label}{keySaved(sys, p.id) ? " — key saved" : " — no key"}
+          </option>
+        ))}
+      </select>
+      {missingKey && (
+        <span className="muted small" style={{ marginTop: 4 }}>
+          No API key saved for this provider — add one under <strong>Settings</strong>.
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function Modal({
   title, onClose, children,

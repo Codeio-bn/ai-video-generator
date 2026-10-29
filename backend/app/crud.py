@@ -199,6 +199,18 @@ def get_job(jid: int) -> Optional[dict]:
         )
 
 
+def latest_active_job(kind: str) -> Optional[dict]:
+    """Most recent queued/running job of a kind (to avoid stacking duplicates)."""
+    with get_conn() as conn:
+        return row_to_dict(
+            conn.execute(
+                "SELECT * FROM render_jobs WHERE kind=? "
+                "AND status IN ('queued','running') ORDER BY id DESC LIMIT 1",
+                (kind,),
+            ).fetchone()
+        )
+
+
 def latest_job_for_episode(episode_id: int) -> Optional[dict]:
     with get_conn() as conn:
         return row_to_dict(

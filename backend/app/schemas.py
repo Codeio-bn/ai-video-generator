@@ -16,7 +16,7 @@ class ProjectCreate(BaseModel):
     language: str = "en"
     style_bible: str = ""
     narrator_voice: str = ""
-    target_episode_length: int = 61
+    target_episode_length: int = 30   # short TikTok by default
     source_text: str = ""
     monthly_budget_cap: float = 0
 
@@ -94,6 +94,22 @@ class ScriptGenRequest(BaseModel):
 class TTSRequest(BaseModel):
     voice: str = ""           # Kokoro voice id; defaults to project/narrator voice
     lang_code: str = ""       # optional override ('a' American, 'b' British)
+
+
+class ShotGenRequest(BaseModel):
+    avg_shot_secs: float = 6.0
+    shot_type: str = "veo_video"   # default type for the generated shots
+    replace: bool = True           # replace the episode's current shots
+
+
+class AutoGenRequest(BaseModel):
+    scp_ref: str = ""              # number/slug/URL; defaults to project's SCP number
+    num_parts: int = 0             # 0 = let Gemini choose
+    guidance: str = ""
+    generate_shots: bool = True    # also build a shot list per episode
+    avg_shot_secs: float = 6.0
+    shot_type: str = "veo_video"
+    replace: bool = True           # replace existing episodes
 
 
 class RenderRequest(BaseModel):

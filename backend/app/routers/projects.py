@@ -10,11 +10,12 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 import json as _json
 
-from .. import crud, tts
-from ..llm import LLMError, generate_episodes
+from .. import costs, crud, jobs, tts
+from ..llm import LLMError, generate_episodes, generate_shot_list
 from ..schemas import (
-    EpisodeCreate, EpisodeUpdate, ProjectCreate, ProjectUpdate,
-    ReorderRequest, ScriptGenRequest, ShotCreate, ShotUpdate, TTSRequest,
+    AutoGenRequest, EpisodeCreate, EpisodeUpdate, ProjectCreate, ProjectUpdate,
+    ReorderRequest, ScriptGenRequest, ShotCreate, ShotGenRequest, ShotUpdate,
+    TTSRequest,
 )
 from ..storage import episode_dir, shots_dir
 
@@ -79,6 +80,24 @@ def delete_project(pid: int):
     _require_project(pid)
     crud.delete_project(pid)
     return {"ok": True}
+
+
+@router.get("/projects/{pid}/cost")
+def project_cost(pid: int):
+    return costs.status(_require_project(pid))
+
+
+@router.post("/projects/{pid}/autogenerate")
+def autogenerate(pid: int, body: AutoGenRequest):
+    """Milestone 4: one click — fetch a real SCP, retell into episodes, and
+    generate each episode's shot list. Runs as a background job; poll /jobs/{id}."""
+    project = _require_project(pid)
+    ref = (body.scp_ref or project.get("scp_number") or "").strip()
+    if not ref:
+        raise HTTPException(400, "Set the project's SCP number, or pass one to generate from.")
+    options = body.model_dump()
+    options["scp_ref"] = ref
+    return jobs.start_autogen(pid, options)
 
 
 # --------------------------------------------------------------------------- #
@@ -261,6 +280,64 @@ def estimate_timings(eid: int):
 def list_shots(eid: int):
     _require_episode(eid)
     return crud.list_shots(eid)
+
+
+@router.post("/episodes/{eid}/generate-shots")
+def generate_shots(eid: int, body: ShotGenRequest):
+    """Milestone 4: break the episode narration into a shot list with Gemini."""
+    ep = _require_episode(eid)
+    proj = _require_project(ep["project_id"])
+
+    # Shot-list generation is a (cheap) Gemini call — still subject to the cap.
+    try:
+        costs.require_budget(proj, 0.0)
+        result = generate_shot_list(proj, ep, body.avg_shot_secs)
+    except costs.BudgetError as exc:
+        raise HTTPException(402, str(exc))
+    except LLMError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Gemini request failed: {exc}")
+
+    if body.replace:
+        for s in crud.list_shots(eid):
+            crud.delete_shot(s["id"])
+        base = 0
+    else:
+        base = len(crud.list_shots(eid))
+
+    stype = body.shot_type or "veo_video"
+    created = []
+    for i, shot in enumerate(result.episodes):  # .episodes carries shot dicts
+        created.append(
+            crud.create_shot(
+                {
+                    "episode_id": eid,
+                    "order_index": base + i,
+                    "narration_excerpt": shot["narration_excerpt"],
+                    "duration": shot["duration"],
+                    "shot_type": stype,
+                    "prompt": shot["prompt"],
+                    "camera_motion": shot["camera_motion"],
+                    "audio_description": shot["audio_description"],
+                    "status": "empty",
+                }
+            )
+        )
+
+    crud.add_cost(
+        proj["id"], provider="gemini", model=result.model, amount=result.cost,
+        episode_id=eid,
+        note=(
+            f"shot list: {len(created)} shots, "
+            f"{result.prompt_tokens}+{result.output_tokens} tokens (est.)"
+        ),
+    )
+    return {
+        "shots": created,
+        "model": result.model,
+        "cost": round(result.cost, 4),
+    }
 
 
 @router.post("/episodes/{eid}/shots")

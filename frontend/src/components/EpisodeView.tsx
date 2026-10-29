@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, fileUrl, upload } from "../api";
 import type { Episode, Project, Shot, ShotType, SystemStatus } from "../types";
-import { Banner } from "./common";
+import { Banner, ProviderPicker } from "./common";
 import { RenderPanel } from "./RenderPanel";
 
 const KB_DIRECTIONS = ["in", "out", "left", "right", "up", "down"];
@@ -24,9 +24,9 @@ export function EpisodeView({
     setEpisode(ep);
     api.getProject(ep.project_id).then(setProject);
   });
+  const loadSys = () => api.system().then(setSys).catch(() => setSys(null));
   useEffect(() => {
-    loadEpisode(); loadShots();
-    api.system().then(setSys).catch(() => setSys(null));
+    loadEpisode(); loadShots(); loadSys();
   }, [episodeId]);
 
   if (!episode || !project) return <div className="container">Loading…</div>;
@@ -41,6 +41,26 @@ export function EpisodeView({
   const addShot = async (shot_type: ShotType) => {
     await api.createShot(episodeId, { shot_type, duration: 6 });
     loadShots();
+  };
+
+  const [genBusy, setGenBusy] = useState(false);
+  const [genMsg, setGenMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const generateShots = async () => {
+    if (shots.length > 0 &&
+        !window.confirm(`Replace the ${shots.length} existing shot(s) with a fresh AI shot list?`)) {
+      return;
+    }
+    setGenBusy(true); setGenMsg(null);
+    try {
+      const res = await api.generateShots(episodeId, {
+        avg_shot_secs: 6, shot_type: "veo_video", replace: true,
+      });
+      const cost = res.cost > 0 ? ` · ~$${res.cost.toFixed(4)}` : "";
+      setGenMsg({ kind: "ok", text: `Generated ${res.shots.length} shots with ${res.model}${cost}. Review and edit each prompt.` });
+      loadShots();
+    } catch (e) {
+      setGenMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally { setGenBusy(false); }
   };
 
   const uploadNarration = async (f: File) => {
@@ -131,10 +151,25 @@ export function EpisodeView({
           Shots <span className="muted small">· {shots.length} shots · {totalShotSecs.toFixed(0)}s</span>
         </h2>
         <div className="btn-row">
+          <button className="primary" onClick={generateShots}
+            disabled={genBusy || !sys?.llm_key_set}
+            title={sys?.llm_key_set ? "" : "Add a text-LLM API key in Settings"}>
+            {genBusy ? <span className="spin" /> : "✨ Generate shot list"}
+          </button>
+          <button onClick={() => addShot("veo_video")}>+ Veo shot</button>
           <button onClick={() => addShot("still_image")}>+ Image shot</button>
           <button onClick={() => addShot("text_card")}>+ Text card</button>
         </div>
       </div>
+      <div style={{ marginBottom: 10 }}>
+        <ProviderPicker sys={sys} onChange={loadSys} disabled={genBusy} />
+      </div>
+      {genMsg && <div style={{ marginBottom: 10 }}><Banner kind={genMsg.kind}>{genMsg.text}</Banner></div>}
+      {!sys?.llm_key_set && (
+        <p className="muted small" style={{ marginTop: -4, marginBottom: 10 }}>
+          No API key saved for the selected AI — add one under Settings to auto-generate a shot list.
+        </p>
+      )}
       {shots.length === 0 ? (
         <div className="empty">No shots yet. Add an image shot and upload a picture, or a text card.</div>
       ) : (
@@ -354,12 +389,43 @@ function ShotRow({
           </div>
         )}
 
+        {local.shot_type === "veo_video" && (
+          <>
+            <div className="field" style={{ marginTop: 8 }}>
+              <label>Veo prompt (visual description — house style is added automatically)</label>
+              <textarea rows={3} value={local.prompt}
+                onChange={(e) => set("prompt", e.target.value)}
+                onBlur={() => commit({ prompt: local.prompt })} />
+            </div>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Camera motion</label>
+                <input value={local.camera_motion}
+                  onChange={(e) => set("camera_motion", e.target.value)}
+                  onBlur={() => commit({ camera_motion: local.camera_motion })} />
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Audio / sound design</label>
+                <input value={local.audio_description}
+                  onChange={(e) => set("audio_description", e.target.value)}
+                  onBlur={() => commit({ audio_description: local.audio_description })} />
+              </div>
+            </div>
+          </>
+        )}
+
         <div className="btn-row" style={{ marginTop: 6 }}>
           {local.shot_type !== "text_card" && (
             <FileButton accept="image/*,video/*" label={local.asset_path ? "Replace media" : "Upload media"} onFile={uploadAsset} />
           )}
           <button className="danger ghost" onClick={() => api.deleteShot(shot.id).then(onChange)}>Delete</button>
         </div>
+        {local.shot_type === "veo_video" && !local.asset_path && (
+          <p className="muted small" style={{ marginTop: 6 }}>
+            One-click Veo generation lands in the next step. For now, refine the
+            prompt and upload a clip manually, or switch the type to a still image.
+          </p>
+        )}
       </div>
     </div>
   );

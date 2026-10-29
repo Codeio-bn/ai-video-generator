@@ -20,7 +20,7 @@ Everything runs on `localhost`. FastAPI (Python) backend · React + TypeScript
 | **1. Render pipeline** | FFmpeg assembly: Ken Burns stills, 9:16 clip crop, title/attribution cards, captions, music ducking, background jobs, minimal UI | ✅ **Done** |
 | **2. Script generation** | Paste story → Gemini splits into episodes (hook / narration / cliffhanger) | ✅ **Done** |
 | **3. Narration audio** | Local Kokoro TTS (pluggable) + word timestamps | ✅ **Done** |
-| 4. Shot list + Veo | LLM shot list, Google Veo 3.1 generation, cost control | ⬜ |
+| 4. Shot list + Veo | LLM shot list ✅ · cost control ✅ · Veo generation ⬜ | 🟡 **In progress** |
 | 5. Export | MP4 + paste-ready description with attribution + hashtags | ⬜ |
 
 ---
@@ -100,8 +100,12 @@ cd frontend ; npm run build
    and survives a browser refresh. The finished 1080×1920 / 30 fps MP4 plays
    inline.
 
-A warning appears if the result is under the project's target length (default
-61 s — TikTok Creator Rewards only counts videos over 1 minute).
+A warning appears if the result is under the project's **Target episode length**
+(default **30 s** — these are short TikToks). Generated narration is written to
+fit that target and is **capped at ~35 s** regardless, so scripts stay tight and
+punchy; set the field lower (e.g. 20 s) for even shorter clips. If you instead
+want videos over a minute (e.g. for TikTok Creator Rewards), raise the cap in
+`backend/app/llm.py` (`_MAX_TIKTOK_SECS`).
 
 ### Captions
 
@@ -118,10 +122,29 @@ caption options unlock. Until then, renders simply omit captions (with a clear
 warning). On Python 3.15 these wheels don't exist yet — see
 [the note](#requirements).
 
-### Google Gemini key (for Milestones 2+)
+### API keys (for Milestones 2+)
 
-**Settings → Google Gemini API key.** Stored locally in `.secrets.json`
-(gitignored, never in the frontend bundle). Get a key from Google AI Studio.
+All text work (story, episodes, shots) goes through a pluggable provider. Pick
+which AI runs a generation with the **AI model for generation** dropdown that
+sits right in each generate panel (auto-generate, script generation, shot
+list) — or under **Settings → Active text provider**. Either way, save that
+provider's key:
+
+- **Groq** — **Settings → Groq API key**. Free and fast when available. Get a
+  key at `console.groq.com`. The model id is auto-picked from your account
+  (override with the `GROQ_MODEL` secret/env).
+- **OpenAI (GPT)** — **Settings → OpenAI API key**. Cheap and reliable. Get a
+  key at `platform.openai.com` (default model `gpt-4o-mini`, override with
+  `OPENAI_MODEL`).
+- **Google Gemini** — **Settings → Google Gemini API key** (from Google AI
+  Studio). Used for Veo **video** generation (Milestone 4+), and as a text
+  provider too (model via `GEMINI_MODEL`).
+
+The selector writes the `LLM_PROVIDER` secret (`groq`, `openai` or `gemini`). If
+it's unset, the provider is auto-chosen: Groq if a Groq key exists, else OpenAI
+if an OpenAI key exists, else Gemini. **Video (Veo) always uses Gemini.** Keys
+are stored locally in `.secrets.json` (gitignored, never in the frontend
+bundle).
 
 ---
 
@@ -142,7 +165,7 @@ warning). On Python 3.15 these wheels don't exist yet — see
    Milestone 1 audio/shots/render flow.
 
 Generation is **human-in-the-loop**: nothing is produced until you approve a
-script. The call runs over the Gemini REST API (model `gemini-2.5-flash` by
+script. The call runs over the Gemini REST API (model `gemini-3.8-flash` by
 default; override with a `GEMINI_MODEL` env var or secret). A rough token-cost
 estimate is recorded per project in the `cost_log` table for budget awareness.
 
@@ -170,6 +193,39 @@ timing estimate). On Python 3.10–3.12, install it with:
 
 The TTS provider lives behind a seam (`backend/app/tts.py`), so a cloud voice
 can later replace Kokoro without touching the routers.
+
+## Using Milestone 4 — shot list & budget (Veo generation next)
+
+### Hands-off: auto-generate from a real SCP
+
+On the project page, use **✨ Auto-generate from a real SCP**: enter an SCP number
+(or URL), click once, and a background job fetches the real article from the SCP
+wiki — **including its author credit and source URL, filled in automatically for
+the CC BY-SA license** — retells it into episodes, and builds each episode's shot
+list. Progress streams live and survives a refresh. Everything it produces stays
+fully editable; nothing is final until you say so.
+
+> Attribution note: the author and source URL are pulled from the wiki (via the
+> Crom index). For a few older articles the author may come back blank — fill it
+> in before export (M5 requires it).
+
+### Manual: generate a shot list for one episode
+
+In an episode's **Shots** section, click **✨ Generate shot list**. Gemini reads
+the script and produces an ordered set of shots — each with a visual **prompt**,
+**camera motion**, **audio/sound-design** note and a duration (4–8 s, the length
+of an AI video clip). Edit any prompt inline; the project's style bible is added
+to each prompt automatically at generation time, so you don't repeat it.
+
+**Cost control.** Set a **Monthly budget cap** (USD) on the project; `0` means no
+cap. Every paid call (Gemini tokens now, Veo seconds soon) is recorded, the
+project header shows **spent / cap / remaining**, and a call that would exceed
+the cap is refused with a clear message (HTTP 402) before any money is spent.
+
+Veo shots show their prompt and controls but can't be generated in one click
+**yet** — that (the Veo video provider, a background generation job, takes, and
+hard per-clip budget enforcement) is the next step. For now you can refine the
+prompts and upload a clip per shot by hand, or switch a shot to a still image.
 
 ## Attribution (SCP license)
 

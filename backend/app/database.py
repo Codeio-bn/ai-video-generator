@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS projects (
     language TEXT NOT NULL DEFAULT 'en',
     style_bible TEXT NOT NULL DEFAULT '',
     narrator_voice TEXT NOT NULL DEFAULT '',
-    target_episode_length INTEGER NOT NULL DEFAULT 61,
+    target_episode_length INTEGER NOT NULL DEFAULT 30,
     source_text TEXT NOT NULL DEFAULT '',
     monthly_budget_cap REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
