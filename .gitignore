@@ -3,9 +3,8 @@
 __pycache__/
 *.pyc
 
-# App data / generated assets / secrets
+# App data / generated media / secrets
 data/
-projects/
 .secrets.json
 .env
 

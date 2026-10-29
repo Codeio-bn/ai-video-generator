@@ -1,6 +1,4 @@
-import type {
-  CostStatus, Episode, Job, Project, ScriptGenResult, Shot, SystemStatus,
-} from "./types";
+import type { SystemStatus, Video } from "./types";
 
 async function req<T>(url: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
@@ -21,7 +19,7 @@ async function req<T>(url: string, opts: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** URL that streams a project asset file by absolute path. */
+/** URL that streams a generated asset (clip / final video) by absolute path. */
 export const fileUrl = (path: string) =>
   `/api/file?path=${encodeURIComponent(path)}`;
 
@@ -32,106 +30,34 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ key, value }),
     }),
-  testGemini: () =>
-    req<{ ok: boolean; detail: string }>("/api/settings/test-gemini", {
-      method: "POST",
-    }),
 
-  listProjects: () => req<Project[]>("/api/projects"),
-  getProject: (id: number) => req<Project>(`/api/projects/${id}`),
-  createProject: (data: Partial<Project>) =>
-    req<Project>("/api/projects", { method: "POST", body: JSON.stringify(data) }),
-  updateProject: (id: number, data: Partial<Project>) =>
-    req<Project>(`/api/projects/${id}`, {
+  listVideos: () => req<Video[]>("/api/videos"),
+  getVideo: (id: string) => req<Video>(`/api/videos/${id}`),
+  createVideo: (scp_ref: string, guidance = "", voice = "") =>
+    req<Video>("/api/videos", {
+      method: "POST",
+      body: JSON.stringify({ scp_ref, guidance, voice }),
+    }),
+  deleteVideo: (id: string) => req(`/api/videos/${id}`, { method: "DELETE" }),
+  patchVideo: (id: string, data: { title?: string; voice?: string }) =>
+    req<Video>(`/api/videos/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
-  deleteProject: (id: number) =>
-    req(`/api/projects/${id}`, { method: "DELETE" }),
-  projectCost: (id: number) => req<CostStatus>(`/api/projects/${id}/cost`),
-
-  listEpisodes: (pid: number) =>
-    req<Episode[]>(`/api/projects/${pid}/episodes`),
-  getEpisode: (eid: number) => req<Episode>(`/api/episodes/${eid}`),
-  createEpisode: (pid: number, data: Partial<Episode>) =>
-    req<Episode>(`/api/projects/${pid}/episodes`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  generateScript: (
-    pid: number,
-    data: { source_text: string; num_parts: number; guidance: string; replace: boolean },
+  patchScene: (
+    id: string,
+    index: number,
+    data: { narration?: string; visual?: string; sound?: string },
   ) =>
-    req<ScriptGenResult>(`/api/projects/${pid}/generate-script`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  autogenerate: (
-    pid: number,
-    data: {
-      scp_ref: string; num_parts: number; generate_shots: boolean;
-      replace: boolean;
-    },
-  ) =>
-    req<Job>(`/api/projects/${pid}/autogenerate`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateEpisode: (eid: number, data: Partial<Episode>) =>
-    req<Episode>(`/api/episodes/${eid}`, {
+    req<Video>(`/api/videos/${id}/scenes/${index}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
-  deleteEpisode: (eid: number) =>
-    req(`/api/episodes/${eid}`, { method: "DELETE" }),
-  generateNarration: (eid: number, data: { voice: string; lang_code?: string }) =>
-    req<Episode>(`/api/episodes/${eid}/tts`, {
+  regenerateScript: (id: string, guidance = "") =>
+    req<Video>(`/api/videos/${id}/regenerate-script`, {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ scp_ref: "", guidance }),
     }),
-  estimateTimings: (eid: number) =>
-    req<Episode>(`/api/episodes/${eid}/estimate-timings`, { method: "POST" }),
-  generateShots: (
-    eid: number,
-    data: { avg_shot_secs: number; shot_type: string; replace: boolean },
-  ) =>
-    req<{ shots: Shot[]; model: string; cost: number }>(
-      `/api/episodes/${eid}/generate-shots`,
-      { method: "POST", body: JSON.stringify(data) },
-    ),
-
-  listShots: (eid: number) => req<Shot[]>(`/api/episodes/${eid}/shots`),
-  createShot: (eid: number, data: Partial<Shot>) =>
-    req<Shot>(`/api/episodes/${eid}/shots`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateShot: (sid: number, data: Partial<Shot>) =>
-    req<Shot>(`/api/shots/${sid}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    }),
-  deleteShot: (sid: number) => req(`/api/shots/${sid}`, { method: "DELETE" }),
-  reorderShots: (eid: number, shot_ids: number[]) =>
-    req<Shot[]>(`/api/episodes/${eid}/shots/reorder`, {
-      method: "POST",
-      body: JSON.stringify({ shot_ids }),
-    }),
-
-  startRender: (eid: number, options: object) =>
-    req<Job>(`/api/episodes/${eid}/render`, {
-      method: "POST",
-      body: JSON.stringify({ options }),
-    }),
-  getJob: (jid: number) => req<Job>(`/api/jobs/${jid}`),
-  latestJob: (eid: number) => req<Job>(`/api/episodes/${eid}/latest-job`),
+  produce: (id: string) =>
+    req<Video>(`/api/videos/${id}/produce`, { method: "POST" }),
 };
-
-/** Multipart upload helper (skips the JSON content-type). */
-export async function upload<T>(url: string, file: File): Promise<T> {
-  const form = new FormData();
-  form.append("file", file);
-  const res = await fetch(url, { method: "POST", body: form });
-  if (!res.ok) throw new Error((await res.text()) || res.statusText);
-  return res.json() as Promise<T>;
-}

@@ -1,12 +1,11 @@
-"""Application configuration and path / binary discovery.
+"""Paths, FFmpeg discovery, and the local API-key store.
 
 Everything the app writes lives under the project root so the whole tool is
 self-contained and portable:
 
     <root>/
-        data/app.db             SQLite database
-        projects/<scp>/...      per-project assets (audio, images, renders)
-        tools/ffmpeg/           vendored static FFmpeg build
+        data/videos/<id>.json   one saved video project + its assets folder
+        tools/ffmpeg/           vendored static FFmpeg build (gitignored)
         .secrets.json           API keys (gitignored, never in the bundle)
 """
 
@@ -21,44 +20,29 @@ from pathlib import Path
 # <root>/backend/app/config.py -> parents[2] == <root>
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
-PROJECTS_DIR = ROOT_DIR / "projects"
+VIDEOS_DIR = DATA_DIR / "videos"
 TOOLS_DIR = ROOT_DIR / "tools"
-DB_PATH = DATA_DIR / "app.db"
 SECRETS_PATH = ROOT_DIR / ".secrets.json"
 
-# Windows system fonts – used for caption burn-in (libass) and Pillow cards.
-WINDOWS_FONTS_DIR = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
-
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _find_binary(name: str) -> str | None:
-    """Locate an ffmpeg/ffprobe binary.
-
-    Order: explicit env override -> vendored tools/ffmpeg (recursive) -> PATH.
-    Returns an absolute path string, or None if not found.
-    """
-    env_key = f"{name.upper()}_PATH"
-    override = os.environ.get(env_key)
+    """Locate ffmpeg/ffprobe: env override -> vendored tools/ffmpeg -> PATH."""
+    override = os.environ.get(f"{name.upper()}_PATH")
     if override and Path(override).exists():
         return str(Path(override).resolve())
 
     exe = f"{name}.exe" if os.name == "nt" else name
     ffmpeg_tools = TOOLS_DIR / "ffmpeg"
     if ffmpeg_tools.exists():
-        # Prefer a shallow bin/ layout, else search the whole vendored tree.
-        candidates = list(ffmpeg_tools.glob(f"bin/{exe}")) + list(
-            ffmpeg_tools.rglob(exe)
-        )
+        candidates = list(ffmpeg_tools.glob(f"bin/{exe}")) + list(ffmpeg_tools.rglob(exe))
         for c in candidates:
             if c.is_file():
                 return str(c.resolve())
 
-    on_path = shutil.which(name)
-    if on_path:
-        return on_path
-    return None
+    return shutil.which(name)
 
 
 @lru_cache(maxsize=1)
@@ -73,35 +57,14 @@ def ffprobe_path() -> str | None:
 
 def require_ffmpeg() -> tuple[str, str]:
     """Return (ffmpeg, ffprobe) paths or raise a clear, user-facing error."""
-    ff = ffmpeg_path()
-    fp = ffprobe_path()
+    ff, fp = ffmpeg_path(), ffprobe_path()
     if not ff or not fp:
         raise RuntimeError(
             "FFmpeg was not found. Expected a vendored build under tools/ffmpeg/, "
             "an FFMPEG_PATH/FFPROBE_PATH environment variable, or ffmpeg on PATH. "
-            "Run the setup step in the README to download it."
+            "Run scripts/setup.ps1 to download it."
         )
     return ff, fp
-
-
-def find_system_font(preferred: list[str] | None = None) -> Path | None:
-    """Return a path to a usable .ttf for Pillow text rendering."""
-    preferred = preferred or [
-        "arialbd.ttf",
-        "Arial.ttf",
-        "arial.ttf",
-        "segoeui.ttf",
-        "tahomabd.ttf",
-    ]
-    for name in preferred:
-        p = WINDOWS_FONTS_DIR / name
-        if p.exists():
-            return p
-    # Fall back to any ttf we can find.
-    if WINDOWS_FONTS_DIR.exists():
-        for p in WINDOWS_FONTS_DIR.glob("*.ttf"):
-            return p
-    return None
 
 
 # ---- lightweight local secrets store (API keys) -----------------------------
@@ -122,5 +85,5 @@ def save_secret(key: str, value: str) -> None:
 
 
 def get_secret(key: str) -> str | None:
-    # Environment variable wins over the stored file.
+    # An environment variable wins over the stored file.
     return os.environ.get(key) or load_secrets().get(key)

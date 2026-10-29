@@ -1,7 +1,7 @@
-# SCP Shorts Studio — dev launcher (Windows PowerShell)
+# SCP Video Studio — dev launcher (Windows PowerShell)
 # Starts BOTH servers in one command: the FastAPI backend (hot reload) and the
-# Vite frontend dev server. Styling/UI changes appear instantly, no rebuild.
-# One Ctrl+C stops both. Run from the repo root:  powershell -File scripts\dev.ps1
+# Vite frontend dev server. One Ctrl+C stops both.
+# Run from the repo root:  powershell -File scripts\dev.ps1
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $py = "$root\.venv\Scripts\python.exe"
@@ -15,9 +15,6 @@ if (-not (Test-Path "$root\frontend\node_modules")) {
 
 $procs = @()
 try {
-    # --reload-dir app scopes the watcher to backend\app so only source edits
-    # trigger a restart (not writes under data\ or projects\). WatchFiles gives
-    # near-instant reloads when installed; uvicorn falls back to polling if not.
     $backend = Start-Process -PassThru -NoNewWindow -WorkingDirectory "$root\backend" `
         $py -ArgumentList "-m", "uvicorn", "app.main:app", "--reload", "--reload-dir", "app", "--port", "8000"
     $procs += $backend
@@ -38,7 +35,6 @@ try {
 } finally {
     foreach ($p in $procs) {
         if ($p -and -not $p.HasExited) {
-            # /T kills the whole process tree (uvicorn's reloader, npm's node child).
             taskkill /PID $p.Id /T /F 2>$null | Out-Null
         }
     }

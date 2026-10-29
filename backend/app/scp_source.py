@@ -1,4 +1,4 @@
-"""Fetch a real SCP article's text + attribution (Milestone 4 auto-generate).
+﻿"""Fetch a real SCP article's text + attribution (Milestone 4 auto-generate).
 
 Uses the Crom API (https://api.crom.avn.sh/graphql), which indexes the SCP wiki
 and exposes each page's wikidot source and its attributions (author, rewrite,

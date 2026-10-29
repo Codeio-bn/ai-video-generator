@@ -1,4 +1,4 @@
-# SCP Shorts Studio — one-time setup (Windows PowerShell)
+# SCP Video Studio — one-time setup (Windows PowerShell)
 # Creates the Python venv, installs backend deps, vendors FFmpeg, installs the
 # frontend, and builds it. Run from the repo root:  powershell -File scripts\setup.ps1
 $ErrorActionPreference = "Stop"
@@ -33,10 +33,5 @@ npm install
 npm run build
 Set-Location $root
 
-Write-Host "`nSetup complete. Start the app with:  powershell -File scripts\run.ps1" -ForegroundColor Green
-
-# --- Optional: captions (faster-whisper) ---
-# Needs binary wheels (ctranslate2, av, onnxruntime) for your Python version.
-# These do NOT yet exist for Python 3.15. On Python 3.10-3.12 run:
-#     .\.venv\Scripts\python.exe -m pip install faster-whisper
-# Rendering works without it; captions are simply skipped until it's installed.
+Write-Host "`nSetup complete. Start the app with:  powershell -File scripts\dev.ps1" -ForegroundColor Green
+Write-Host "Then add your OpenAI + Gemini API keys under Settings." -ForegroundColor Green
