@@ -17,7 +17,8 @@ frontend · FFmpeg for assembly. API keys are stored locally and never bundled.
 
 ## Requirements
 
-- **Windows 11** (scripts target Windows; the stack is cross-platform).
+- **Linux or macOS** (bash scripts); **Windows 11** also supported (PowerShell
+  scripts). The stack itself is cross-platform.
 - **Python 3.12–3.15** (3.15 works — all AI calls are plain HTTP, no heavy wheels).
 - **Node.js 18+**.
 - **An OpenAI API key** (script + narration) and a **Google Gemini API key with
@@ -25,16 +26,18 @@ frontend · FFmpeg for assembly. API keys are stored locally and never bundled.
 
 ## Setup
 
-```powershell
-powershell -File scripts\setup.ps1
+```bash
+./scripts/setup.sh          # Windows: powershell -File scripts\setup.ps1
 ```
 
-Creates `.venv`, installs backend deps, vendors FFmpeg, and builds the frontend.
+Creates `.venv`, installs backend deps, vendors a static FFmpeg build, and
+builds the frontend. (If your arch isn't x86_64/arm64, install ffmpeg with your
+package manager — e.g. `sudo apt install ffmpeg` — and re-run.)
 
 ## Run
 
-```powershell
-powershell -File scripts\dev.ps1
+```bash
+./scripts/dev.sh            # Windows: powershell -File scripts\dev.ps1
 # then open http://127.0.0.1:5173
 ```
 

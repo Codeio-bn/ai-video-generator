@@ -62,7 +62,7 @@ def require_ffmpeg() -> tuple[str, str]:
         raise RuntimeError(
             "FFmpeg was not found. Expected a vendored build under tools/ffmpeg/, "
             "an FFMPEG_PATH/FFPROBE_PATH environment variable, or ffmpeg on PATH. "
-            "Run scripts/setup.ps1 to download it."
+            "Run scripts/setup.sh (scripts\\setup.ps1 on Windows) to download it."
         )
     return ff, fp
 
