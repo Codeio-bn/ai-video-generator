@@ -49,20 +49,28 @@ frontend.
 ## Run
 
 ```powershell
+powershell -File scripts\dev.ps1
+# then open http://127.0.0.1:5173
+```
+
+`dev.ps1` starts **both** servers in one command — the API (hot reload) and the
+Vite frontend — and one Ctrl+C stops both. UI/styling changes appear instantly,
+no rebuild needed. This is the recommended way to run the app day to day.
+
+### Production mode (single origin)
+
+To serve the built frontend and the API from one origin instead:
+
+```powershell
 powershell -File scripts\run.ps1
 # then open http://127.0.0.1:8000
 ```
 
-The backend serves the built frontend and the API from the same origin.
-
-### Dev mode (hot reload)
+This serves the **pre-built** bundle in `frontend\dist`, so after any change to
+the frontend, rebuild it to see the update:
 
 ```powershell
-# terminal 1 — backend
-cd backend ; ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
-# terminal 2 — frontend (proxies /api to :8000)
-cd frontend ; npm run dev
-# open http://127.0.0.1:5173
+cd frontend ; npm run build
 ```
 
 ---
