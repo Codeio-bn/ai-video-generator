@@ -1,0 +1,14 @@
+# Core backend (installs cleanly on Python 3.12–3.15)
+fastapi>=0.162
+uvicorn>=0.54          # plain uvicorn on purpose: uvicorn[standard] pulls pyyaml,
+                       # which has no 3.15 wheel yet and needs a C compiler.
+python-multipart>=0.0.20
+pillow>=11
+requests>=2.32
+
+# Milestone 1 captions (optional). Needs ctranslate2 + av wheels for your Python.
+# If install fails on a brand-new Python, rendering still works without captions.
+# faster-whisper>=1.1
+
+# Milestone 2/4 Gemini + Veo (added when we reach those milestones).
+# google-genai>=0.8
